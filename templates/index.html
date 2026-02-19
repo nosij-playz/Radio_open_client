@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroWave: Climate-Aware Intelligent Radio System (CAIRS)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* Responsive mobile improvements */
+        @media (max-width: 600px) {
+            .main-container {
+                padding: 0.5rem;
+                max-width: 100vw;
+            }
+            .radio-card {
+                padding: 1rem;
+                border-radius: 20px;
+                box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            }
+            .header {
+                margin-bottom: 1.5rem;
+            }
+            .title {
+                font-size: 2rem;
+                margin-bottom: 0.2rem;
+            }
+            .subtitle {
+                font-size: 0.9rem;
+            }
+            .player-section {
+                max-width: 100vw;
+            }
+            .play-btn {
+                width: 90px;
+                height: 90px;
+                font-size: 2rem;
+            }
+            .ripple {
+                width: 90px;
+                height: 90px;
+            }
+            .visualizer {
+                height: 36px;
+                gap: 2px;
+            }
+            .visualizer-bar {
+                width: 4px;
+                height: 12px;
+            }
+            .status-panel {
+                padding: 1rem;
+                border-radius: 16px;
+            }
+            .status-text {
+                font-size: 1rem;
+                min-height: 2rem;
+            }
+            .footer {
+                font-size: 0.7rem;
+                margin-top: 1rem;
+            }
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(145deg, #0a0c14 0%, #141824 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Animated background grid */
+        .grid-background {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        /* Floating particles */
+        .particles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(0, 255, 255, 0.1) 0%, transparent 50%);
+            filter: blur(40px);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        .main-container {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 1200px;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+
+        .radio-card {
+            background: rgba(20, 24, 36, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            border-radius: 48px;
+            padding: 3rem;
+            box-shadow: 
+                0 20px 40px rgba(0, 0, 0, 0.5),
+                0 0 0 1px rgba(0, 255, 255, 0.1) inset,
+                0 0 30px rgba(0, 255, 255, 0.2);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #fff 0%, #00ffff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            position: relative;
+            display: inline-block;
+        }
+
+        .title::before {
+            content: '⚡';
+            position: absolute;
+            left: -50px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 2rem;
+            animation: spark 1s ease-in-out infinite;
+        }
+
+        .title::after {
+            content: '⚡';
+            position: absolute;
+            right: -50px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 2rem;
+            animation: spark 1s ease-in-out infinite 0.5s;
+        }
+
+        @keyframes spark {
+            0%, 100% { opacity: 0.5; transform: translateY(-50%) scale(1); }
+            50% { opacity: 1; transform: translateY(-50%) scale(1.2); }
+        }
+
+        .subtitle {
+            color: #8892b0;
+            font-size: 1.1rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+        }
+
+        .mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .mode-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            color: #fff;
+            padding: 1rem 2rem;
+            border-radius: 60px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            min-width: 160px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            backdrop-filter: blur(10px);
+        }
+
+        .mode-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(0, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .mode-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(135deg, #00ffff 0%, #0088ff 100%);
+            color: #0a0c14;
+            border-color: transparent;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+            animation: activePulse 2s infinite;
+        }
+
+        @keyframes activePulse {
+            0%, 100% { box-shadow: 0 0 30px rgba(0, 255, 255, 0.5); }
+            50% { box-shadow: 0 0 50px rgba(0, 255, 255, 0.8); }
+        }
+
+        .control-center {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .player-section {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .play-btn-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .play-btn {
+            background: linear-gradient(145deg, #00ffff, #0088ff);
+            border: none;
+            border-radius: 50%;
+            width: 140px;
+            height: 140px;
+            font-size: 3.5rem;
+            cursor: pointer;
+            box-shadow: 
+                0 10px 30px rgba(0, 255, 255, 0.4),
+                0 0 0 2px rgba(255, 255, 255, 0.8) inset,
+                0 0 30px #00ffff;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 2;
+            color: #0a0c14;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .play-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 
+                0 15px 40px rgba(0, 255, 255, 0.6),
+                0 0 0 3px rgba(255, 255, 255, 1) inset,
+                0 0 50px #00ffff;
+        }
+
+        .play-btn:active {
+            transform: scale(0.95);
+        }
+
+        .ripple {
+            position: absolute;
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            animation: ripple 2s ease-out infinite;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(1);
+                opacity: 0.5;
+            }
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+
+        .status-panel {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 40px;
+            padding: 2rem;
+            width: 100%;
+            border: 1px solid rgba(0, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            box-sizing: border-box;
+        }
+
+        .status-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 1.2rem;
+            color: #8892b0;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #00ff88;
+            box-shadow: 0 0 20px #00ff88;
+            animation: blink 2s infinite;
+        }
+
+        .status-indicator.playing {
+            background: #00ff88;
+            box-shadow: 0 0 20px #00ff88;
+        }
+
+        .status-indicator.stopped {
+            background: #ff4444;
+            box-shadow: 0 0 20px #ff4444;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-text {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            min-height: 3rem;
+        }
+
+        .mode-badge {
+            background: rgba(0, 255, 255, 0.1);
+            border-radius: 30px;
+            padding: 1rem 2rem;
+            display: inline-block;
+            margin-top: 1rem;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        .mode-badge span {
+            color: #00ffff;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .visualizer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            height: 60px;
+            margin-top: 1rem;
+        }
+
+        .visualizer-bar {
+            width: 8px;
+            height: 20px;
+            background: linear-gradient(to top, #00ffff, #0088ff);
+            border-radius: 4px;
+            animation: visualize 1s ease-in-out infinite;
+            opacity: 0.5;
+        }
+
+        .visualizer-bar.playing {
+            opacity: 1;
+        }
+
+        @keyframes visualize {
+            0%, 100% { height: 20px; }
+            50% { height: 50px; }
+        }
+
+        .visualizer-bar:nth-child(2) { animation-delay: 0.1s; }
+        .visualizer-bar:nth-child(3) { animation-delay: 0.2s; }
+        .visualizer-bar:nth-child(4) { animation-delay: 0.3s; }
+        .visualizer-bar:nth-child(5) { animation-delay: 0.4s; }
+        .visualizer-bar:nth-child(6) { animation-delay: 0.5s; }
+        .visualizer-bar:nth-child(7) { animation-delay: 0.6s; }
+
+        .footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: #8892b0;
+            font-size: 0.9rem;
+            letter-spacing: 0.1em;
+        }
+
+        .error-message {
+            color: #ff4444;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-background"></div>
+    <div class="particles"></div>
+    
+    <div class="main-container">
+        <div class="radio-card">
+            <div class="header">
+                <h1 class="title">NeuroWave</h1>
+                <div class="subtitle"><b>CAIRS</b> Streaming System</div>
+            </div>
+
+
+
+            <div class="control-center">
+                <div class="player-section">
+                    <div class="play-btn-container">
+                        <button class="play-btn" id="playPauseBtn">▶️</button>
+                        <div class="ripple"></div>
+                    </div>
+                    
+                    <div class="visualizer">
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                        <div class="visualizer-bar"></div>
+                    </div>
+                </div>
+
+                <div class="status-panel">
+                    <div class="status-header">
+                        <div class="status-indicator stopped" id="statusIndicator"></div>
+                        <span>SYSTEM STATUS</span>
+                    </div>
+                    
+                    <div class="status-text" id="statusText">INITIALIZING...</div>
+                    
+                    <div class="mode-badge">
+                        CURRENT MODE: <span id="currentMode">DUAL MODE</span>
+                    </div>
+                    
+                    <div class="error-message" id="errorMessage"></div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <span id="connectionStatus">⚡ SECURE QUANTUM CONNECTION</span> • <span id="frequencyDisplay">FREQ: 104.3 MHz</span> • ENCRYPTED
+            </div>
+        </div>
+    </div>
+
+    <audio id="audioPlayer" style="display:none;"></audio>
+
+    <script>
+        // State variables
+        let playing = false;
+        let currentMode = 'both';
+        let status = null;
+        let alertInProgress = false;
+        let ttsAlerting = false;
+        let resumeTimeout = null;
+        let lastAlertMsg = null;
+        let alertAudioElem = null;
+        
+        // DOM elements
+        const btn = document.getElementById('playPauseBtn');
+        const statusText = document.getElementById('statusText');
+        const audio = document.getElementById('audioPlayer');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const currentModeSpan = document.getElementById('currentMode');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const frequencyDisplay = document.getElementById('frequencyDisplay');
+        const errorMessage = document.getElementById('errorMessage');
+
+        const visualizerBars = document.querySelectorAll('.visualizer-bar');
+
+        // Helper function to show errors
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.classList.add('visible');
+            setTimeout(() => {
+                errorMessage.classList.remove('visible');
+            }, 5000);
+        }
+
+        // Update visualizer animation based on play state
+        function updateVisualizer(isPlaying) {
+            visualizerBars.forEach(bar => {
+                if (isPlaying) {
+                    bar.style.animationPlayState = 'running';
+                    bar.classList.add('playing');
+                } else {
+                    bar.style.animationPlayState = 'paused';
+                    bar.classList.remove('playing');
+                }
+            });
+        }
+
+        function updateButton() {
+            btn.textContent = playing ? '⏸️' : '▶️';
+        }
+
+        function updateStatusIndicator() {
+            if (playing && status && (status.status === 'net' || status.status === 'both')) {
+                statusIndicator.className = 'status-indicator playing';
+                connectionStatus.innerHTML = '⚡ LIVE STREAMING • SECURE';
+            } else if (playing) {
+                statusIndicator.className = 'status-indicator playing';
+                connectionStatus.innerHTML = '📡 FREQUENCY ACTIVE • NO AUDIO';
+            } else {
+                statusIndicator.className = 'status-indicator stopped';
+                connectionStatus.innerHTML = '⏹️ STANDBY • AWAITING INPUT';
+            }
+        }
+
+
+
+        // Play/Pause button click handler
+        btn.onclick = function() {
+            playing = !playing;
+            updateButton();
+            
+            if (playing) {
+                statusText.textContent = 'CONNECTING TO STREAM...';
+                connectionStatus.innerHTML = '🔄 ESTABLISHING QUANTUM LINK';
+                
+                // First check server status
+                fetch('/status')
+                    .then(r => r.json())
+                    .then(serverStatus => {
+                        status = serverStatus;
+                        if (serverStatus && (serverStatus.status === 'net' || serverStatus.status === 'both')) {
+                            // Start streaming
+                            return fetch('/start').then(r => r.json());
+                        } else {
+                            // UI only mode (frequency)
+                            statusText.textContent = 'FREQUENCY MODE ACTIVE';
+                            updateStatusIndicator();
+                            updateVisualizer(true);
+                            return { play: false };
+                        }
+                    })
+                    .then(data => {
+                        if (data && data.play) {
+                            audio.src = '/stream';
+                            audio.play()
+                                .then(() => {
+                                    audio.style.display = '';
+                                    statusText.textContent = 'LIVE STREAMING';
+                                    updateStatusIndicator();
+                                    updateVisualizer(true);
+                                })
+                                .catch(err => {
+                                    console.error('Playback failed:', err);
+                                    showError('Failed to play audio stream');
+                                    playing = false;
+                                    updateButton();
+                                    updateVisualizer(false);
+                                });
+                            
+                            // Audio event listeners
+                            audio.onplay = () => {
+                                statusText.textContent = 'LIVE STREAMING';
+                                connectionStatus.innerHTML = '🔊 AUDIO ACTIVE • QUANTUM LINK';
+                                updateVisualizer(true);
+                            };
+                            
+                            audio.onpause = () => {
+                                if (playing) {
+                                    statusText.textContent = 'BUFFERING';
+                                }
+                                updateVisualizer(false);
+                            };
+                            
+                            audio.onerror = (e) => {
+                                console.error('Audio error:', e);
+                                statusText.textContent = 'STREAM ERROR';
+                                connectionStatus.innerHTML = '⚠️ BUFFER OVERFLOW • RETRYING';
+                                showError('Stream error - retrying...');
+                                updateVisualizer(false);
+                            };
+                            
+                            audio.onended = () => {
+                                if (playing) {
+                                    statusText.textContent = 'STREAM ENDED';
+                                    playing = false;
+                                    updateButton();
+                                    updateVisualizer(false);
+                                }
+                            };
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Failed to start stream:', err);
+                        showError('Failed to connect to server');
+                        playing = false;
+                        updateButton();
+                        statusText.textContent = 'CONNECTION FAILED';
+                        updateStatusIndicator();
+                        updateVisualizer(false);
+                    });
+            } else {
+                // Stop playback
+                audio.pause();
+                audio.currentTime = 0;
+                fetch('/stop').catch(err => console.error('Failed to stop:', err));
+                statusText.textContent = 'STREAM TERMINATED';
+                updateStatusIndicator();
+                updateVisualizer(false);
+            }
+        };
+
+        // Poll server status
+        function pollStatus() {
+            fetch('/status')
+                .then(r => r.json())
+                .then(data => {
+                    status = data;
+                    if (status && status.status) {
+                        // Update UI based on status
+                        let statusDisplay = '';
+                        switch(status.status) {
+                            case 'net':
+                                statusDisplay = 'NETWORK MODE';
+                                break;
+                            case 'both':
+                                statusDisplay = 'DUAL MODE';
+                                break;
+                            case 'freq':
+                                statusDisplay = 'FREQUENCY MODE';
+                                break;
+                            case 'stop':
+                                statusDisplay = 'SYSTEM STOPPED';
+                                break;
+                            default:
+                                statusDisplay = 'UNKNOWN';
+                        }
+                        
+                        // Only update if not overridden by playing state
+                        if (!playing) {
+                            statusText.textContent = statusDisplay;
+                        }
+                        
+                        // Sync playing state with server if needed
+                        if (playing && (status.status === 'stop' || status.status === 'freq')) {
+                            if (!audio.paused) {
+                                audio.pause();
+                                audio.currentTime = 0;
+                                audio.style.display = 'none';
+                            }
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('Status poll failed:', err);
+                });
+        }
+
+        // Poll for alerts
+        function pollAlert() {
+            if (alertInProgress) return;
+            
+            fetch('/alert')
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.message) {
+                        if (!ttsAlerting && data.message !== lastAlertMsg) {
+                            ttsAlerting = true;
+                            alertInProgress = true;
+                            lastAlertMsg = data.message;
+                            
+                            // Update UI
+                            statusText.textContent = '⚠️ ALERT: ' + data.message;
+                            connectionStatus.innerHTML = '🚨 EMERGENCY BROADCAST';
+                            
+                            // Pause music if playing
+                            const wasPlaying = playing && !audio.paused;
+                            if (wasPlaying) {
+                                audio.pause();
+                            }
+                            
+                            // Clear any existing resume timeout
+                            if (resumeTimeout) {
+                                clearTimeout(resumeTimeout);
+                                resumeTimeout = null;
+                            }
+                            
+                            // Fetch and play alert
+                            fetch('/tts_alert')
+                                .then(resp => {
+                                    if (!resp.ok) throw new Error('Alert fetch failed');
+                                    return resp.blob();
+                                })
+                                .then(blob => {
+                                    const alertUrl = URL.createObjectURL(blob);
+                                    
+                                    if (alertAudioElem) {
+                                        alertAudioElem.pause();
+                                        alertAudioElem.currentTime = 0;
+                                    }
+                                    
+                                    alertAudioElem = new Audio(alertUrl);
+                                    
+                                    alertAudioElem.onended = function() {
+                                        URL.revokeObjectURL(alertUrl);
+                                        
+                                        // Wait 10 seconds before restoring
+                                        resumeTimeout = setTimeout(() => {
+                                            ttsAlerting = false;
+                                            alertInProgress = false;
+                                            resumeTimeout = null;
+                                            
+                                            // Resume music if it was playing
+                                            if (wasPlaying && status && (status.status === 'net' || status.status === 'both')) {
+                                                audio.play()
+                                                    .then(() => {
+                                                        statusText.textContent = 'LIVE STREAMING';
+                                                        connectionStatus.innerHTML = '🔊 AUDIO ACTIVE • QUANTUM LINK';
+                                                    })
+                                                    .catch(err => {
+                                                        console.error('Failed to resume:', err);
+                                                    });
+                                            } else {
+                                                statusText.textContent = 'STREAM PAUSED';
+                                            }
+                                        }, 10000);
+                                    };
+                                    
+                                    alertAudioElem.onerror = function() {
+                                        console.error('Alert playback failed');
+                                        URL.revokeObjectURL(alertUrl);
+                                        ttsAlerting = false;
+                                        alertInProgress = false;
+                                        showError('Failed to play alert');
+                                    };
+                                    
+                                    alertAudioElem.play().catch(err => {
+                                        console.error('Alert play failed:', err);
+                                        ttsAlerting = false;
+                                        alertInProgress = false;
+                                        showError('Failed to play alert');
+                                    });
+                                })
+                                .catch(err => {
+                                    console.error('Alert fetch failed:', err);
+                                    ttsAlerting = false;
+                                    alertInProgress = false;
+                                    showError('Failed to fetch alert');
+                                });
+                        }
+                    } else {
+                        // No alert, reset state
+                        lastAlertMsg = null;
+                        if (!resumeTimeout) {
+                            ttsAlerting = false;
+                            alertInProgress = false;
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('Alert poll failed:', err);
+                });
+        }
+
+        // Initialize
+        setInterval(pollStatus, 2000);
+        setInterval(pollAlert, 2000);
+        pollStatus();
+        pollAlert();
+        updateButton();
+        updateStatusIndicator();
+        updateVisualizer(false);
+
+        // Handle page visibility change
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && playing) {
+                // Optionally pause when tab is hidden
+                // audio.pause();
+            } else if (!document.hidden && playing && status && (status.status === 'net' || status.status === 'both')) {
+                // Resume when tab becomes visible
+                audio.play().catch(err => console.log('Autoplay prevented:', err));
+            }
+        });
+
+        // Handle audio context suspension (for browsers)
+        document.addEventListener('click', () => {
+            if (audio.paused && playing) {
+                audio.play().catch(err => console.log('Play on click failed:', err));
+            }
+        }, { once: false });
+    </script>
+</body>
+</html>

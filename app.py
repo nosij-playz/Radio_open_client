@@ -5,15 +5,10 @@ from gtts import gTTS
 import yt_dlp
 from flask import Flask, render_template, jsonify, request
 from db import get_db_connection
-import hashlib
 
 
 import os
 app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), 'templates'))
-
-# In-memory caches
-yt_audio_url_cache = {}
-tts_audio_cache = {}
 
 import threading
 import time
@@ -25,11 +20,10 @@ def monitor_alerts():
     while True:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        # Check ai_alert
-        cursor.execute("SELECT * FROM ai_alert WHERE id=1")
+        # Only fetch needed columns
+        cursor.execute("SELECT message FROM ai_alert WHERE id=1")
         ai = cursor.fetchone()
-        # Check user_alert
-        cursor.execute("SELECT * FROM user_alert WHERE id=1")
+        cursor.execute("SELECT message FROM user_alert WHERE id=1")
         user = cursor.fetchone()
         cursor.close()
         conn.close()
@@ -42,7 +36,7 @@ def monitor_alerts():
         else:
             alert_data["type"] = None
             alert_data["message"] = None
-        time.sleep(4)  # Less frequent polling
+        time.sleep(6)  # Less frequent polling for low CPU
 
 # Start monitor thread
 threading.Thread(target=monitor_alerts, daemon=True).start()
@@ -94,18 +88,11 @@ def stream():
         'outtmpl': '-',
     }
     url = music['link']
-    print(f"[STREAM] /stream called. Current music link: {url}")
+    # Avoid unnecessary prints for low CPU
     def generate():
-        print(f"[MUSIC] Streaming music from: {url}")
-        # yt-dlp audio url cache
-        if url in yt_audio_url_cache:
-            audio_url = yt_audio_url_cache[url]
-        else:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                audio_url = info['url']
-            yt_audio_url_cache[url] = audio_url
-        # Use ffmpeg to stream audio
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            audio_url = info['url']
         ffmpeg_cmd = [
             'ffmpeg', '-i', audio_url, '-f', 'mp3', '-vn', '-'
         ]
@@ -117,8 +104,8 @@ def stream():
                     break
                 yield data
         finally:
-            p.kill()
-        print("[MUSIC] Music streaming ended.")
+            if p.poll() is None:
+                p.kill()
     return Response(generate(), mimetype='audio/mpeg')
 
 # TTS for alert
@@ -131,7 +118,7 @@ def tts_alert():
     if not alert_data["message"]:
         print("[ALERT] No alert message to play.")
         return "", 204
-    print(f"[ALERT] Playing TTS alert: {alert_data['message']}")
+    # Avoid unnecessary prints for low CPU
     msg = alert_data["message"]
     # Detect Malayalam (simple unicode range check)
     def is_malayalam(text):
@@ -139,30 +126,17 @@ def tts_alert():
             if '\u0D00' <= c <= '\u0D7F':
                 return True
         return False
-    # Cache key: hash of text+lang+slow
-    def tts_cache_key(text, lang, slow):
-        h = hashlib.sha256()
-        h.update((text + lang + str(slow)).encode('utf-8'))
-        return h.hexdigest()
     if is_malayalam(msg):
-        lang = 'ml'
-        slow = True
-    else:
-        lang = 'en'
-        slow = False
-    key = tts_cache_key(msg, lang, slow)
-    if key in tts_audio_cache:
-        buf = io.BytesIO(tts_audio_cache[key])
-    else:
         try:
-            tts = gTTS(text=msg, lang=lang, slow=slow)
+            tts = gTTS(text=msg, lang='ml', slow=True)
         except Exception as e:
-            print(f"[ALERT] TTS failed, falling back to English: {e}")
+            print(f"[ALERT] Malayalam TTS failed, falling back to English: {e}")
             tts = gTTS(text=msg, lang='en')
-        buf = io.BytesIO()
-        tts.write_to_fp(buf)
-        tts_audio_cache[key] = buf.getvalue()
-        buf.seek(0)
+    else:
+        tts = gTTS(text=msg, lang='en')
+    buf = io.BytesIO()
+    tts.write_to_fp(buf)
+    buf.seek(0)
     return send_file(buf, mimetype='audio/mpeg')
 
 # Start music (play)
@@ -201,4 +175,4 @@ def status():
     return jsonify(status_row)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
